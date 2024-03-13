@@ -1,0 +1,45 @@
+Program.Sub.Preflight.Start
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.If(V.Caller.Hook,=,11920)
+	'SO header script 2
+	F.Intrinsic.Control.CallSub(GenerateWO)
+F.Intrinsic.Control.ElseIf(V.Caller.Hook,=,11560)
+	V.Passed.000202.Set("Gen WO")
+F.Intrinsic.Control.EndIf
+Program.Sub.Main.End
+
+Program.Sub.GenerateWO.Start
+V.Local.i1.Declare
+V.Local.sFilter.Declare
+V.Local.sParam.Declare
+V.Local.sRet.Declare
+V.Local.sSO.Declare
+V.Local.sSQL.Declare
+
+F.ODBC.Connection!conx.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass,600)
+
+F.Intrinsic.String.LPad(V.Passed.000003,"0",7,V.Local.sSO)
+
+F.Intrinsic.String.Build("select left(record_no,3) as Line, part as Part from v_order_lines where order_no = '{0}' order by record_no",V.Local.sSO.Trim,V.Local.sSQL)
+F.Data.DataTable.CreateFromSQL("dtSOLine","conx",V.Local.sSQL,True)
+F.Intrinsic.Control.If(V.DataTable.dtSOLine.RowCount,=,0)
+	F.Intrinsic.UI.Msgbox("Sales Order does not have any line item")
+F.Intrinsic.Control.Else
+	F.Intrinsic.String.Build("select left(order_line,3) as Line, part as Part from v_order_to_wo where order_no = '{0}'",V.Local.sSO.Trim,V.Local.sSQL)
+	F.Data.DataTable.CreateFromSQL("dtSOWO","conx",V.Local.sSQL,True)
+	F.Intrinsic.Control.For(V.Local.i1,0,V.DataTable.dtSOLine.RowCount--,1)
+		F.Intrinsic.String.Build("Line = '{0}'",V.DataTable.dtSOLine(V.Local.i1).Line!FieldValTrim,V.Local.sFilter)
+		F.Data.DataTable.Select("dtSOWO",V.Local.sFilter,V.Local.sRet)
+		F.Intrinsic.Control.If(V.Local.sRet,=,"***NORETURN***")
+			F.Intrinsic.String.Build("O{0}{1}{0}{2}{0}Y","!*!",V.Local.sSO.Trim,V.DataTable.dtSOLine(V.Local.i1).Line!FieldValTrim,V.Local.sParam)
+			F.Global.General.CallWrapperSync(200801,V.Local.sParam)
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.Next(V.Local.i1)
+	F.Data.DataTable.Close("dtSOWO")
+F.Intrinsic.Control.EndIf
+F.Data.DataTable.Close("dtSOLine")
+
+F.ODBC.Connection!conx.Close
+Program.Sub.GenerateWO.End
